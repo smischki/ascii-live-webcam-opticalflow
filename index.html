@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ASCII Mirror</title>
+<style>
+body {
+  height: 100vh; /*100% of the windows height*/
+  margin: 0;
+  background: #000;
+  display: grid;  
+  place-items: center; /*this and line above puts ASCII picture in the middle of the screen*/
+  overflow: hidden;  /*hides scroll bar*/
+}
+
+pre {      /*shows text exactly as typed, browser doesnt tidy it up*/
+    margin: 0;
+    color: #7CFFB2;
+    font-family: Menlo, Consolas, "Courier New", monospace;
+    line-height: 1.2;
+}
+</style>
+</head>
+
+
+<body>
+<pre id="out">Allow camera access to start :p</pre>
+
+<script>
+
+  const COLS = 210;   // how many chars wide
+  const sobel_x = [[-1,0,1],[-2,0,2],[-1,0,1]]; 
+  const sobel_y = [[-1,-2,-1],[0,0,0],[1,2,1]];
+  const avg_kernel = [[1/12, 1/6, 1/12],[1/6, 0, 1/6 ],[1/12, 1/6, 1/12]];
+  const alpha = 0.5;
+  const ITERATIONS = 100;
+  const MAX_SPEED = 3;
+  const MIN_SPEED = 0.2;
+  const RAMP = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/*tfjrxnuvczmwqpdbkhaoXYUJCLQ0OZ#MW&8%B@$";   // chars from dark to bright
+
+
+  const out = document.getElementById("out");
+
+  const video = document.createElement("video");
+  video.playsInline = true; //play video inside browser, not fullscreen
+  video.muted = true;
+
+  // canvas: one pixel here = one character on screen
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  let rows = 0;
+
+  //set the size
+  function resize() {
+    rows = Math.round(COLS * (video.videoHeight / video.videoWidth)* 0.5); //calculate rows from COLS to keep webcam ratio
+    canvas.width = COLS;
+    canvas.height = rows;
+
+    ctx.setTransform(-1, 0, 0, 1, COLS, 0); //flip horizontally so it behaves like a mirror
+
+    fitText();
+  }
+
+  //finds largest font size where the picture still fits on screen
+  function fitText() {
+    const size = Math.min(innerWidth / (COLS * 0.6), innerHeight / (rows * 1.2));
+    out.style.fontSize = size + "px";
+  }
+
+  let prevBrightness = null; //brightness list of prev frame
+
+  //main loop
+  function draw() {
+  ctx.drawImage(video, 0, 0, COLS, rows);
+  const pixels = ctx.getImageData(0, 0, COLS, rows).data; //read color val of every pixel
+
+  // brightness of every pixel 
+  const brightness = [];
+  for (let i = 0; i < pixels.length; i += 4) {
+    brightness.push((0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2]) / 255);
+  }
+
+  // first frame: nothing to compare with
+  if (prevBrightness === null) {
+    prevBrightness = brightness;
+    requestAnimationFrame(draw);
+    return;
+  }
+
+  // Ix, Iy, It for every pixel
+  const N = COLS * rows;
+  const Ix = new Array(N).fill(0);
+  const Iy = new Array(N).fill(0);
+  const It = new Array(N).fill(0);
+
+  for (let y = 1; y < rows - 1; y++) {     //start at 1, stop 1 early -> skips the border
+    for (let x = 1; x < COLS - 1; x++) {
+      const i = x + y * COLS;
+      let gx = 0;
+      let gy = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const b = brightness[(x + dx) + (y + dy) * COLS];
+          gx += b * sobel_x[dy + 1][dx + 1];
+          gy += b * sobel_y[dy + 1][dx + 1];
+        }
+      }
+      Ix[i] = gx;   //sobel is 8x too big -> /8 gives change per pixel
+      Iy[i] = gy;
+      It[i] = brightness[i] - prevBrightness[i];
+    }
+  }
+
+  // Horn-Schunck
+  let u = new Array(N).fill(0);
+  let v = new Array(N).fill(0);
+
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+ 
+    for (let y = 1; y < rows - 1; y++) {
+      for (let x = 1; x < COLS - 1; x++) {
+        const i = x + y * COLS;
+        let u_avg = 0;
+        let v_avg = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const n = (x + dx) + (y + dy) * COLS;   
+            u_avg += u[n] * avg_kernel[dy + 1][dx + 1];
+            v_avg += v[n] * avg_kernel[dy + 1][dx + 1];
+          }
+        }
+        const common = (Ix[i] * u_avg + Iy[i] * v_avg + It[i]) / (alpha**2 + Ix[i]**2 + Iy[i]**2);
+        u[i] = u_avg - Ix[i] * common;
+        v[i] = v_avg - Iy[i] * common;
+      }
+    }
+  }
+
+  // build text
+  let text = "";
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const i = x + y * COLS;
+      const speed = Math.sqrt(u[i] * u[i] + v[i] * v[i]);
+
+      if (speed < MIN_SPEED) {
+        text += " ";  
+        continue;
+      }
+
+      const t = Math.min(speed / MAX_SPEED, 1);              //0 = slow, 1 = fast
+      const c = RAMP[Math.floor(t * (RAMP.length - 1))];
+      text += c;  
+    }
+    text += "\n";
+  }
+
+  out.textContent = text;  
+  prevBrightness = brightness;
+  requestAnimationFrame(draw);
+}
+
+  //start camera
+  async function start() {
+    try {
+      video.srcObject = await navigator.mediaDevices.getUserMedia({ video: true}); //asks for camera 
+      await video.play();
+      resize();
+      addEventListener("resize", fitText); //whenever event the window is resized run fitText again
+      draw();
+    } catch (err) {
+      out.textContent = "Couldn't open the camera :((";
+    }
+  }
+
+  start();
+</script>
+</body>
+</html>
