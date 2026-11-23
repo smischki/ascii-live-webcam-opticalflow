@@ -1,8 +1,8 @@
 # Optical Flow Arrow Mirror
  
-A live webcam mirror that detects **motion** and draws it as ASCII arrows pointing the way things move, in real time, right in the browser.
+A live webcam mirror that detects motion and draws it as ASCII arrows pointing the way things move, in real time, right in the browser.
  
-It uses the **Horn–Schunck** optical flow algorithm to work out how every pixel moves between two webcam frames. Still areas stay empty, and moving areas fill with arrows (`→ ↘ ↓ ↙ ← ↖ ↑ ↗`) that follow your movement. 
+It uses the Horn–Schunck optical flow algorithm to work out how every pixel moves between two webcam frames. Still areas stay empty, and moving areas fill with arrows (`→ ↘ ↓ ↙ ← ↖ ↑ ↗`) that follow your movement. 
 
 ## How it works
  
