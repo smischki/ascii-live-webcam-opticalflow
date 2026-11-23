@@ -36,7 +36,8 @@ pre {      /*shows text exactly as typed, browser doesnt tidy it up*/
   const ITERATIONS = 100;
   const MAX_SPEED = 3;
   const MIN_SPEED = 0.2;
-  const RAMP = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/*tfjrxnuvczmwqpdbkhaoXYUJCLQ0OZ#MW&8%B@$";   // chars from dark to bright
+  //const RAMP = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/*tfjrxnuvczmwqpdbkhaoXYUJCLQ0OZ#MW&8%B@$";   // chars from dark to bright
+  const ARROWS = "→↘↓↙←↖↑↗"; //starting from 0 degrees, clockwise
 
 
   const out = document.getElementById("out");
@@ -150,7 +151,10 @@ pre {      /*shows text exactly as typed, browser doesnt tidy it up*/
       }
 
       const t = Math.min(speed / MAX_SPEED, 1);              //0 = slow, 1 = fast
-      const c = RAMP[Math.floor(t * (RAMP.length - 1))];
+      //const c = RAMP[Math.floor(t * (RAMP.length - 1))];
+      let angle = Math.atan2(v[i], u[i]) * 180 / Math.PI;   //direction of motion, -180 to 180
+      if (angle < 0) angle += 360;                          //0 to 360
+      const c = ARROWS[Math.round(angle / 45) % 8]; 
       text += c;  
     }
     text += "\n";
